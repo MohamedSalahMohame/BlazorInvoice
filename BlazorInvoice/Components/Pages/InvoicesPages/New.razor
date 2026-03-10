@@ -1,0 +1,706 @@
+﻿@page "/invoices/new"
+@*
+It means that the page is running in Blazor Server mode
+That is:
+Implementation takes place on the server
+Updates are done via SignalR
+The interface remains interactive Without reloading the page.
+*@
+@rendermode InteractiveServer
+@* This allows you to call JavaScript from within C# ex await JS.InvokeVoidAsync("alert", "القيمة لا يمكن أن تكون سالبة"); *@
+
+@inject IJSRuntime JS
+@* Importing a library that allows data to be stored securely within the browser.
+For use with:Session Storage Local Storage *@
+
+
+@* @using = You say to the library, "I want to learn about this book." *@
+
+@* @using System.ComponentModel.DataAnnotations.Schema; *@
+
+ @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage      @*  .................................................................. *@
+
+@* It give usething like await ProtectedSessionStore.GetAsync<string>("key");
+To save temporary user data within the browser *@
+@*  .....................................................The using of ProtectedSessionStore in  OnAfterRenderAsync  and you will find the explaination ........................................................................................ *@
+@* @inject = You say, "Give me a copy of the book to use."*@
+@inject ProtectedSessionStorage ProtectedSessionStore
+
+@using BlazorInvoice.Models
+@using Microsoft.EntityFrameworkCore
+@inject BlazorInvoice.Data.InvoiceDbContext dbContext
+
+
+@* Function Control page navigation.
+Use it: Go to another page: *@
+@inject NavigationManager NavigationManager
+
+<div class="d-flex justify-content-between">
+
+    <!-- Search -->
+    @*    <div class="d-flex"> *@
+
+    @*`item` is an object of type SearchOption
+
+    `SearchText` is a property within SearchOption
+
+    When you type `any thing` in the search box, the text is stored inside `item.SearchText` *@
+
+    @*  Two-Way Binding   For a value directly linked between the interface and the code *@
+    @*   <InputText class="form-control" @bind-Value="item.SearchText" />
+    <button class="btn btn-info" @onclick="SearchItems">اضافة</button>
+    </div>
+    *@
+
+
+    @*AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA*@
+
+
+    <div style="position:relative; width:300px">
+
+
+        <input class="form-control"
+               placeholder="Search item..."
+               @bind="item.SearchText"
+               @bind:event="oninput"
+               @bind:after="FilterItems"
+               @onfocus="ShowItems"
+               @onblur="HideItems" />   <!-- ← هنا -->
+
+        @if (FilteredItems.Any())
+        {
+            <ul class="list-group"
+                style="position:absolute; width:100%; z-index:1000">
+
+                @foreach (var i in FilteredItems)
+                {
+                    <li class="list-group-item list-group-item-action"
+                        @onclick="() => SelectItem(i)">
+                        @i.ItemName
+                    </li>
+                }
+
+            </ul>
+        }
+
+    </div>
+
+
+    <!-- Currency                                                     -------------------        -->
+    <div class="d-flex border border-primary rounded">
+        <div class="form-check m-2">
+            <input class="form-check-input" type="radio"
+                   @onclick="()=> HandleCurrency(Currency.USD)" checked>
+            <label>Dollar</label>
+        </div>
+
+        <div class="form-check m-2">
+            <input class="form-check-input" type="radio"
+                   @onclick="()=> HandleCurrency(Currency.DINAR)">
+            <label>Dinar</label>
+        </div>
+
+        @if (selectedCurrency == Currency.DINAR)
+        {
+            <input style="width:100px"
+                   class="form-control m-1"
+                   type="number"
+                   @bind="DollarBoDinar"
+                   @bind:event="oninput"
+                   @bind:after="()=> HandleCurrency(Currency.DINAR)" />
+        }
+    </div>
+
+    @*1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111@*  @bind:event="oninput"  The update occurs directly during the writing process. *@
+    <div style="position:relative; width:250px;">
+
+          @* Show  First 5 Customers   *@
+        <input class="form-control"
+               placeholder="Search customer..."
+               @bind="CustomerSearchText"
+               @bind:event="oninput"
+               @bind:after="FilterCustomers"
+               @onfocus="ShowCustomers"
+               @onblur="HideCustomers" />  <!-- ← جديد -->
+
+        <!-- Dropdown -->
+        @if (FilteredCustomers.Any())
+        {
+            <ul class="list-group"
+                style="position:absolute; width:100%; z-index:1000">
+
+                @foreach (var customer in FilteredCustomers)
+                {
+                    <li class="list-group-item list-group-item-action"
+                        @onclick="() => SelectCustomer(customer)">
+                        @customer.Name
+                    </li>
+                }
+
+            </ul>
+        }
+
+    </div>
+
+
+    <!-- Save ----------------------------------------->
+    <div>
+        <button class="btn btn-outline-primary"
+                @onclick="SaveInvoice"
+                disabled="@(Items.Count == 0 || CustomerId==0)">
+            Save Invoice
+        </button>
+    </div>
+
+</div>
+
+@if (Items != null)
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Purchase</th>
+                <th>Qty</th>
+                <th>Sale</th>
+                <th>Total Cost</th>
+                <th>Total Sale</th>
+                <th></th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var item in Items)
+            {
+                <tr>
+                    <td>@item.ItemName</td>
+                    <td>@item.PurchasePrice</td>
+
+                    <td>
+                        <button class="btn btn-warning"
+                                @onclick="()=> item.Quantity--">
+                            -
+                        </button>
+
+                        @item.Quantity
+
+                        <button class="btn btn-info"
+                                @onclick="()=> item.Quantity++">
+                            +
+                        </button>
+                    </td>
+
+                    <td>@item.SalePrice</td>
+                    <td>@(item.Quantity * item.PurchasePrice)</td>
+                    <td>@(item.Quantity * item.SalePrice)</td>
+
+                    <td>
+                        <button class="btn btn-danger"
+                                @onclick="() => DeleteSelectedItem(item.Id)">
+                            X
+                        </button>
+                    </td>
+                </tr>
+            }
+
+
+            <!-- SIMPLE TOTAL -->
+            <tr>
+                <td colspan="5" class="fw-bold">Total</td>
+                <td class="fw-bold">@SimpleTotal</td>
+                <td></td>
+            </tr>
+
+        </tbody>
+    </table>
+}
+
+<!-- Payments -->
+<div class="d-flex justify-content-start mx-3">
+
+    @foreach (var m in new int[] { 12, 10, 8, 6, 4, 2, 1 })
+    {
+        <div class="form-check m-1">
+            <input type="radio"
+                   class="form-check-input"
+                   name="months"
+                   @onclick="()=> HandleSelction(m)" />                
+            <label>@m Months</label>
+        </div>
+    }
+
+</div>
+
+
+
+@* U111UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+ *@
+
+<div class="row row-cols-5">
+    @foreach (var payment in payments)
+    {
+        // تحديد اللون بناءً على حالة الدفع
+        var bgClass = payment.Paid ? "bg-success" : "bg-warning";
+
+        <div class="card text-white @bgClass m-1">
+            <div class="card-header">
+                @payment.Date.ToShortDateString()
+            </div>
+            <h5 class="card-title"> @payment.Amount : @payment.Currency - @payment.Paid</h5> @*  ....................................................... *@
+
+            <div class="card-body d-flex justify-content-between">
+       
+                <input type="number"
+                       class="form-control"
+                       style="width:90px"
+                       min="0"
+                       max="@SimpleTotal"
+                       @bind="payment.Amount"
+                       @bind:event="oninput"
+                       @onfocus="() => lastValidAmount = payment.Amount"
+                       @bind:after="()=>ValidatePayment(payment)"
+                       disabled="@IsLocked(payment)" />
+
+                <input type="checkbox"
+                       @bind="payment.Paid"
+                       @bind:after="()=> StateHasChanged()" />
+                @* بعد تغيير حالة الدفع، نطلب إعادة الرندر حتى يتغير لون البطاقة فورًا *@
+            </div>
+
+        </div>
+
+    }
+</div>
+@code {
+
+    public SearchOption item { get; set; } = new();
+
+    // property for Item List After we search and find the item so it be stored in this List
+    public List<Item> Items { get; set; } = new();
+    public List<Customer> Customers { get; set; } = new();
+    //Varaiable to save CustomerId which we get from list of customers after we select specific name so we can use this vaiable in the code
+    public int CustomerId { get; set; }
+
+    private Currency selectedCurrency = Currency.USD;
+    private int DollarBoDinar = 0;
+
+    private int NoOfMonths = 12;
+    private List<Payment> payments = new();
+
+    // SIMPLE TOTAL ONLY
+    // int SimpleTotal => Items.Sum(x => x.Quantity * x.SalePrice);
+    int SimpleTotal
+    {
+        get
+        {
+            var total = Items.Sum(x => x.Quantity * x.SalePrice);
+
+            if (selectedCurrency == Currency.DINAR && DollarBoDinar > 0)
+                total *= DollarBoDinar;
+
+            return total;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // read all customers from the database
+        Customers = await dbContext.Customer.ToListAsync();
+    }
+
+    @*22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222*@
+
+    private string CustomerSearchText = "";
+    // This is the list of customers that will appear in the dropdown.
+    private List<Customer> FilteredCustomers = new();
+
+
+    @*BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB*@
+
+    private List<Item> FilteredItems = new();
+
+    private int lastValidAmount;
+
+
+    // This code makes the page remember the dollar exchange rate from the previous visit by retrieving it from Session Storage after the first page load.
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var result = await ProtectedSessionStore.GetAsync<int>("DollarRate");
+            if (result.Success)
+                DollarBoDinar = result.Value;
+        }
+    }
+
+
+    private void HandleCurrency(Currency currency)
+    {
+        selectedCurrency = currency;
+        HandleSelction(NoOfMonths);
+    }
+    private void HandleSelction(int noOfMonths)
+    {
+        NoOfMonths = noOfMonths;
+        payments.Clear();
+
+        var totalAmount = SimpleTotal;
+
+        var amountPerPayment =
+            Math.Round(totalAmount / (double)NoOfMonths, 2);
+
+        var date = DateTime.Now;
+
+        for (int i = 0; i < NoOfMonths; i++)
+        {
+            payments.Add(new Payment
+                {
+                    Date = date.AddMonths(i),
+                    Amount = (int)amountPerPayment,
+                    Currency = selectedCurrency
+                });
+        }
+    }
+
+
+
+
+    private void DeleteSelectedItem(int id)
+    {
+        Items.Remove(Items.First(x => x.Id == id));
+    }
+
+
+
+    private async Task SearchItems()
+    {
+        if (string.IsNullOrWhiteSpace(item.SearchText))
+            item.SearchText = "LED";
+
+        var newItems = await dbContext.Items
+            .Where(x => x.ItemName.Contains(item.SearchText))
+            .ToListAsync();
+
+        foreach (var i in newItems)
+        {
+            var existing = Items.FirstOrDefault(x => x.Id == i.Id);
+
+
+
+
+            // This part of the code iterates through each product found in the database search (`newItems`),
+            // then checks if that product already exists in the invoice's product list (`Items`). If it does,
+            // it doesn't add a new line but simply increments the quantity (`Quantity++`). If it doesn't exist,
+            // it sets the quantity to 1 and then adds it to the invoice list. The purpose of this logic is to prevent
+            // the same product from appearing in multiple rows, ensuring that each product appears only once and
+            // that the quantity is incremented when it is added more than once.
+
+            if (existing != null)
+                existing.Quantity++;
+            else
+            {
+                i.Quantity = 1;
+                Items.Add(i);
+            }
+        }
+    }
+
+    private async Task SaveInvoice()
+    {
+  
+        var invoice = new Invoice
+            {
+                InvoiceDate = DateTime.Now,
+                CustomerId = CustomerId,
+                Payment = SimpleTotal,
+                Currency = selectedCurrency,
+                DollarBoDinar = DollarBoDinar // ← هذا يضمن الحفظ في DB
+            };
+
+        dbContext.Invoices.Add(invoice);
+        await dbContext.SaveChangesAsync();
+
+        var invoiceItems = Items.Select(i => new InvoiceItem
+            {
+                ItemId = i.Id,
+                Quantity = i.Quantity,
+                SalePrice = i.SalePrice,
+                CostPrice = i.PurchasePrice,
+                InvoiceId = invoice.Id
+            });
+
+        await dbContext.InvoiceItems.AddRangeAsync(invoiceItems);
+
+        foreach (var payment in payments)
+        {
+            payment.InvoiceId = invoice.Id;
+            payment.Currency = selectedCurrency;
+        }
+
+        await dbContext.Payments.AddRangeAsync(payments);
+        await dbContext.SaveChangesAsync();
+
+        await ProtectedSessionStore.SetAsync("DollarRate", DollarBoDinar);
+
+        NavigationManager.NavigateTo("Invoices/Index");
+    }
+
+    public class SearchOption
+    {
+        public string? SearchText { get; set; }
+    }
+
+
+    @*333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333*@
+
+
+    private void ShowCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(CustomerSearchText))
+        {
+            FilteredCustomers = Customers
+                .OrderBy(x => x.Name)
+                .Take(5)
+                .ToList();
+        }
+    }
+    private void FilterCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(CustomerSearchText)) /* Checks whether the user has typed anything useful in the search field */
+
+        {
+            FilteredCustomers = Customers
+                .OrderBy(x => x.Name)
+                .Take(5)
+                .ToList();
+        }
+        else
+        {
+            FilteredCustomers = Customers
+                .Where(x => x.Name.Contains(CustomerSearchText,
+                       StringComparison.OrdinalIgnoreCase))/* This makes the search case -insensitive */
+
+                .OrderBy(x => x.Name)
+                .Take(7)
+                .ToList();
+        }
+    }
+    private void SelectCustomer(Customer customer)
+    {
+        CustomerId = customer.Id;
+        CustomerSearchText = customer.Name;
+
+        FilteredCustomers.Clear();           /*   Hides the menu. */
+
+    }
+
+    @*CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC*@
+
+    private void ShowItems()
+    {
+        FilteredItems = dbContext.Items
+            .OrderBy(x => x.ItemName)
+            .Take(5)
+            .ToList();
+    }
+    private void FilterItems()
+    {
+        if (string.IsNullOrWhiteSpace(item.SearchText))
+        {
+            FilteredItems = dbContext.Items
+                .OrderBy(x => x.ItemName)
+                .Take(5)
+                .ToList();
+        }
+        else
+        {
+            FilteredItems = dbContext.Items
+     .Where(x => x.ItemName.Contains(item.SearchText))
+     .OrderBy(x => x.ItemName)
+     .Take(7)
+     .ToList();
+        }
+    }
+    private void SelectItem(Item selectedItem)
+    {
+        var existing = Items.FirstOrDefault(x => x.Id == selectedItem.Id);
+
+        if (existing != null)
+            existing.Quantity++;
+        else
+        {
+            selectedItem.Quantity = 1;
+            Items.Add(selectedItem);
+        }
+
+        item.SearchText = "";
+        FilteredItems.Clear();
+    }
+
+    @* U222UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU
+ *@
+
+   
+    private void UpdatePayment(Payment payment, ChangeEventArgs e)
+    {
+        int newAmount = Convert.ToInt32(e.Value);
+
+        int total = payments.Sum(p => p.Amount);
+
+        // ❌ منع الرقم السالب
+        if (newAmount < 0)
+            return;
+
+        // ❌ منع القسط أكبر من إجمالي الفاتورة
+        if (newAmount > SimpleTotal)
+            return;
+
+        int oldAmount = payment.Amount;
+
+        int difference = newAmount - oldAmount;
+
+        payment.Amount = newAmount;
+        payment.IsEdited = true;
+
+        var remaining = payments
+            .Where(p => !p.IsEdited)
+            .ToList();
+
+        if (remaining.Count == 0)
+            return;
+
+        int share = difference / remaining.Count;
+
+        foreach (var p in remaining)
+        {
+            p.Amount -= share;
+        }
+    }
+
+
+    bool IsLocked(Payment payment)
+    {
+        var remaining = payments.Where(p => !p.IsEdited).ToList();//.ToList turn result to List<Payment>
+
+        return remaining.Count == 1 && !payment.IsEdited;
+    }
+
+    private async Task ValidatePayment(Payment payment)
+    {
+        if (payment.Amount < 0)
+        {
+            await JS.InvokeVoidAsync("alert", "القيمة لا يمكن أن تكون سالبة");
+            payment.Amount = lastValidAmount;
+            StateHasChanged();
+            return;
+        }
+
+        if (payment.Amount == 0 && lastValidAmount > 0)
+        {
+            payment.Amount = lastValidAmount;
+            StateHasChanged();
+            return;
+        }
+
+        if (payment.Amount > SimpleTotal)
+        {
+            await JS.InvokeVoidAsync("alert", "القيمة أكبر من الفاتورة");
+            payment.Amount = lastValidAmount;
+            StateHasChanged();
+            return;
+        }
+
+        UpdatePaymentLogic(payment);
+    }
+
+
+    private void UpdatePaymentLogic(Payment payment)
+    {
+        int newAmount = payment.Amount;
+        int oldAmount = lastValidAmount;
+        int difference = newAmount - oldAmount;
+
+        payment.IsEdited = true;
+
+        var remaining = payments
+            .Where(p => !p.IsEdited)
+            .ToList();
+
+        if (remaining.Count == 0)
+            return;
+
+        int share = difference / remaining.Count;
+
+        foreach (var p in remaining)
+        {
+            p.Amount -= share;
+        }
+
+        lastValidAmount = newAmount;
+    }
+
+
+    private void HideItems()
+    {
+        // نؤجل مسح القائمة قليلاً لإعطاء فرصة للنقر على العنصر
+        Task.Delay(150).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                FilteredItems.Clear();
+                StateHasChanged();
+            });
+        });
+    }
+    private void HideCustomers()
+    {
+        // نؤجل مسح القائمة قليلاً لإعطاء فرصة للنقر على عنصر من القائمة قبل الإخفاء
+        Task.Delay(150).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                FilteredCustomers.Clear();
+                StateHasChanged();
+            });
+        });
+    }
+}
+
+
+@*
+First action
+
+
+ You type in the search box.
+ The value is stored in `item.SearchText`.
+ You click the "Add" button.
+`SearchItems()` is executed.
+ The database is searched using `Contains()`.
+ The results are added to `Items`.
+ The table displays the new items. *@
+
+
+
+
+
+
+
+@* Two-Way Binding
+
+Event Handling
+
+Dependency Injection
+
+Entity Framework Core
+
+Computed Properties
+
+Session Storage
+
+Navigation
+
+Lifecycle Methods
+
+Business Logic (حساب أقساط) *@
+

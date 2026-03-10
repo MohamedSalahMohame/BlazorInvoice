@@ -1,0 +1,243 @@
+﻿@* This page is linked to /customers *@
+@page "/customers"
+
+@* Is used to include the QuickGrid namespace in Blazor, allowing you to use its components directly in the page or component without writing the full namespace each time.
+ *@
+@using Microsoft.AspNetCore.Components.QuickGrid
+@*  Call the database (InvoiceDbContext) within the page *@
+@inject BlazorInvoice.Data.InvoiceDbContext DB
+@* This specifies that the page is running in Blazor Server Mode *@
+@rendermode InteractiveServer
+
+@using BlazorInvoice.Models
+@using System.Linq;
+@using Microsoft.Data.SqlClient;
+@using Microsoft.EntityFrameworkCore;
+<style>
+
+
+    /*     Table formatting: full width, lines to separate cells, even row highlighting, hover effect, and heading background.
+     */
+    .quickgrid-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .quickgrid-table th,
+        .quickgrid-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        .quickgrid-table th {
+            background-color: #ca1010;
+            text-align: left;
+            font-weight: bold;
+        }
+
+
+        /* nth-child is a CSS selector that allows you to apply a style to an element based
+        on its order among its siblings. nth-child(even) → Applies the style to rows that have an even order (2, 4, 6...). */
+        .quickgrid-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .quickgrid-table tr:hover {
+            background-color: #f1f1f1;
+        }
+</style>
+<PageTitle>Index</PageTitle>
+<button @onclick="GetCustomersWithPaymentStatus">All Customers</button>
+
+<button @onclick="SortByName">Sort by Name</button>
+
+<button @onclick="SortByPaymentDate">Sort by Payment Date</button>
+
+
+
+@* Sorts customers by name and removes duplicates*@
+@* <button @onclick="() => { customers = customers.Distinct(new CustomerNameComparer()).OrderBy(c => c.Name).ToList(); }">Sort by Name</button>
+ *@
+@*Sort by financial status (overdue, upcoming, paid...)*@
+@* <button @onclick="LoadCustomersByStatus">Sort by Status</button>
+ *@
+@* <button @onclick="GetCustomersWithPaymentStatus">All</button>
+ *@<div class="d-flex justify-content-between">
+    <h3>الزبائن</h3>
+    <a class="btn btn-primary" href="/customers/create">اضافة زبون جديد</a>
+</div>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>الاسم</th>
+            <th>العنوان</th>
+            <th>الهاتف</th>
+            <th>الحالة</th>
+            <th>الدفع</th>
+            <th>التحكم</th>
+        </tr>
+    </thead>
+    <tbody>
+
+        @foreach (var customer in customers)
+        {
+            var bgClass = customer.PaymentStatus switch
+            {
+                PaymentStatus.late => "bg-danger",
+                PaymentStatus.upComing => "bg-warning",
+                PaymentStatus.paid => "bg-success",
+                PaymentStatus.Early => "bg-info",
+                PaymentStatus.Inactive => "bg-secondary",
+                _ => ""
+            };
+            <tr>
+                <td>@customer.Name</td>
+                <td>@customer.Address</td>
+                <td>@customer.Phone</td>
+                <td>@customer.Status</td>
+                <td> <label class="@bgClass form-control"> @customer.PaymentStatus</label></td>
+                <td>
+                    <a href="@($"customers/edit?id={customer.Id}")">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pen-fill" viewBox="0 0 16 16">
+                            <path d="m13.498.795.149-.149a1.207 1.207 0 1 1 1.707 1.708l-.149.148a1.5 1.5 0 0 1-.059 2.059L4.854 14.854a.5.5 0 0 1-.233.131l-4 1a.5.5 0 0 1-.606-.606l1-4a.5.5 0 0 1 .131-.232l9.642-9.642a.5.5 0 0 0-.642.056L6.854 4.854a.5.5 0 1 1-.708-.708L9.44.854A1.5 1.5 0 0 1 11.5.796a1.5 1.5 0 0 1 1.998-.001" />
+                        </svg>
+                    </a> |
+                    <a href="@($"customers/details?id={customer.Id}")">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-credit-card-2-front" viewBox="0 0 16 16">
+                            <path d="M14 3a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM2 2a2 2 0 0 0" />
+                        </svg>
+                    </a>
+                    <a href="@($"customers/delete?id={customer.Id}")">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-x btn-danger" viewBox="0 0 16 16">
+                            <path d="M6.146 6.146a.5.5 0 0 1 .708 0L8 7.293l1.146-1.147a.5.5 0 1 1 .708.708L8.707 8l1.147 1.146a.5.5 0 0 1-.708.708L8 8.707 6.854 9.854a.5.5 0 0 1-.708-.708L7.293 8 6.146 6.854a.5.5 0 0 1 0-.708" />
+                            <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1" />
+                        </svg>
+                    </a>
+                    <a href="@($"customers/status?id={customer.Id}")">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-currency-dollar" viewBox="0 0 16 16">
+                            <path d="M4 10.781c.148 1.667 1.513 2.85 3.591 3.003V15h1.043v-1.216c2.27-.179 3.678-1.438 3.678-3.3 0-1.59-.947-2.51-2.956-3.028l-.722-.187V3.467c1.122.11 1.879.714 2.07 1.616h1.47c-.166-1.6-1.54-2.748-3.54-2.875V1H7.591v1.233c-1.939.23-3.27 1.472-3.27 3.156 0 1.454.966 2.483 2.661 2.917l.61.162v4.031c-1.149-.17-1.94-.8-2.131-1.718zm3.391-3.836c-1.043-.263-1.6-.825-1.6-1.616 0-.944.704-1.641 1.8-1.828v3.495l-.2-.05zm1.591 1.872c1.287.323 1.852.859 1.852 1.769 0 1.097-.826 1.828-2.2 1.939V8.73z" />
+                        </svg>
+                    </a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+
+
+@code {
+
+    // For the list displayed in the table
+
+    List<CustomCustomer> customers;
+
+
+    // Store IDs of customers after sorting...............................
+    List<int> SortedCustomersIds;
+
+    protected override void OnInitialized()
+    {
+        GetCustomersWithPaymentStatus();
+    }
+
+
+
+    public void GetCustomersWithPaymentStatus()
+    {
+        var now = DateTime.Now;
+
+        var customersWithInvoices = DB.Customer
+            .Select(c => new CustomCustomer
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Address = c.Address,
+                    Phone = c.Phone,
+                    Status = Status.Active,
+
+                    // 🔹 أقرب تاريخ دفع غير مدفوع
+                    PaymentDate = DB.Payments
+                            .Where(p => p.Invoice.CustomerId == c.Id && !p.Paid)
+                            .OrderBy(p => p.Date)
+                            .Select(p => p.Date)
+                            .FirstOrDefault()
+                })
+            .ToList();
+
+        // 🔹 الآن نحسب PaymentStatus فقط إذا كان لديه فاتورة
+        foreach (var c in customersWithInvoices)
+        {
+            if (c.PaymentDate == default)
+            {
+                c.Status = Status.Inactive;
+                c.PaymentStatus = PaymentStatus.Inactive;
+            }
+            else if (c.PaymentDate < now)
+            {
+                c.PaymentStatus = PaymentStatus.late;
+            }
+            else if (c.PaymentDate <= now.AddDays(10))
+            {
+                c.PaymentStatus = PaymentStatus.upComing;
+            }
+            else
+            {
+                c.PaymentStatus = PaymentStatus.Early;
+            }
+        }
+
+        // 🔹 ترتيب العملاء: Inactive في الأسفل
+        customers = customersWithInvoices
+            .OrderBy(c => c.PaymentDate == default)
+            .ThenBy(c => c.PaymentDate)
+            .ToList();
+    }
+    public enum Status
+    {
+        Active,
+        Inactive
+    }
+    public enum PaymentStatus
+    {
+        late, upComing, paid, Early, Inactive
+    }
+
+
+
+    //Class CustomCustomer makes complex database data something ready to be displayed and handled on the page in an organized and easy way.
+    public class CustomCustomer
+    {
+        public int Id { get; set; }
+        public string? Name { get; set; }
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public Status? Status { get; set; }
+        public DateTime PaymentDate { get; set; }
+        public PaymentStatus? PaymentStatus { get; set; }
+        public bool paid { get; set; }
+
+    }
+
+
+
+
+    private void SortByName()
+    {
+        customers = customers
+            .OrderBy(c => c.Name)
+            .ToList();
+    }
+
+    private void SortByPaymentDate()
+    {
+        customers = customers
+            .Where(c => c.PaymentDate != default) // only customers with invoices
+            .OrderBy(c => c.PaymentDate)
+            .ToList();
+    }
+
+
+
+}

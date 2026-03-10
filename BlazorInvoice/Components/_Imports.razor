@@ -1,0 +1,18 @@
+﻿@* Import namespaces so you don't have to write them in every component.
+ *@
+@using System.Net.Http@*//To use HttpClient to send and receive HTTP (API) requests.*@
+@using System.Net.Http.Json@* To facilitate sending and receiving JSON directly (such as GetFromJsonAsync: It takes the JSON from the link and converts it into an object in C# so that you can easily use it within the program.). *@
+@using Microsoft.AspNetCore.Components.Forms @* To use form components such as: EditForm and InputText and validate data. *@
+@using Microsoft.AspNetCore.Components.Routing  @* To handle page navigation (Routing) such as:NavLink and Router. *@
+@using Microsoft.AspNetCore.Components.Web   @* To use browser events such as: onclick, onchange, etc. *@
+@using static Microsoft.AspNetCore.Components.Web.RenderMode   @* The use of either InteractiveServer or Static is permitted without specifying the full name. *@
+@* no <component type="typeof(App)" 
+           render-mode="Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer" />
+but
+<component type="typeof(App)" 
+           render-mode="InteractiveServer" /> *@
+@using Microsoft.AspNetCore.Components.Web.Virtualization   @* To use the Virtualize feature To display large data sets (e.g., 10,000 rows) efficiently and quickly. *@
+@using Microsoft.JSInterop  @* To communicate between Blazor and JavaScript(Running JS functions from within C#). *@
+@using BlazorInvoice   @* To use the classes that are in your project itself. *@
+@using BlazorInvoice.Components @*  To use the components that you created inside the Components folder. *@
+@using BlazorBootstrap;   @* To use the BlazorBootstrap library It is a ready-made component library built on Bootstrap for easy interface design. *@

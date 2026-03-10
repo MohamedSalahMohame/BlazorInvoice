@@ -1,0 +1,65 @@
+﻿@page "/customers/delete"
+@inject BlazorInvoice.Data.InvoiceDbContext DB
+@using BlazorInvoice.Models
+@inject NavigationManager NavigationManager
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Delete</PageTitle>
+
+
+<div  class="d-flex justify-content-between bg-danger text-white p-3" style="background-image: linear-gradient(180deg, rgb(188, 36, 36) 0%, #3a0647 70%);
+}">
+    <h3>هل انت متاكد من الحذف؟</h3>
+    <a class="btn btn-outline-primary" href="/customers">العودة الى قائمة الزبائن</a>
+</div>
+
+<div>
+   
+    <hr />
+    @if (customer is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        <dl class="row">
+            <dt class="col-sm-2">اسم الزبون</dt>
+            <dd class="col-sm-10">@customer.Name</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">العنوان</dt>
+            <dd class="col-sm-10">@customer.Address</dd>
+        </dl>
+        <dl class="row">
+            <dt class="col-sm-2">رقم الموبايل</dt>
+            <dd class="col-sm-10">@customer.Phone</dd>
+        </dl>
+        <EditForm method="post" Model="customer" OnValidSubmit="DeleteCustomer" FormName="delete" Enhance>
+            <button type="submit" class="btn btn-danger" disabled="@(customer is null)">احدف</button> 
+           
+        </EditForm>
+    }
+</div>
+
+@code {
+    Customer? customer;
+
+    [SupplyParameterFromQuery]
+    public int Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        customer = await DB.Customer.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (customer is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    public async Task DeleteCustomer()
+    {
+        DB.Customer.Remove(customer!);
+        await DB.SaveChangesAsync();
+        NavigationManager.NavigateTo("/customers");
+    }
+}

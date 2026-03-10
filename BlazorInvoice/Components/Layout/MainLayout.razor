@@ -1,0 +1,54 @@
+﻿@* Any Layout in Blazor must inherit from LayoutComponentBase.
+
+This class provides a property called @Body.
+
+@Body is the place where the content of other pages is rendered.
+
+ *@
+
+
+@inherits LayoutComponentBase
+
+<style>
+
+    /* // Scoped CSS in Blazor:
+    // Styles apply only to this component, not the whole site.
+    // So .sidebar here affects only this component’s sidebar.*/
+
+
+    .sidebar[b-yicsk6pqvn] {
+        background-image: linear-gradient(180deg, rgb(118 22 9) 0%, #bf3380 70%);
+    }
+</style>
+
+@* rtl It makes the direction from right to left,
+which is very suitable for the Arabic language. *@
+<div class="page" style="direction: rtl">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+
+@* Blazor apply layouts to pages
+
+Blazor uses the Router component in App.razor.
+The RouteView component has a DefaultLayout property.
+If a page does not specify a layout explicitly, it automatically uses the DefaultLayout defined in App.razor.
+The page content is rendered inside the @Body placeholder of the layout. *@

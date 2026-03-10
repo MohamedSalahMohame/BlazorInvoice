@@ -1,0 +1,88 @@
+﻿@page "/items"
+@using BlazorInvoice.Models
+@* To be able to use ToListAsync() because it is a function specific to EF Core.*@
+@using Microsoft.EntityFrameworkCore
+@*This means you can use dbContext within the page to access the database.*@
+@inject BlazorInvoice.Data.InvoiceDbContext dbContext
+
+
+@* In Blazor Server, when using @attribute [StreamRendering(true)], the page can render progressively
+instead of waiting for all data to load. For example, if a page contains three sections—a static title,
+a static list of links, and a table that depends on database data—the title and links will appear
+immediately. The table section will not render until the data loading is complete, and you can temporarily
+display a “Loading...” message in its place until the data is ready. *@
+@attribute [StreamRendering(true)]
+
+<div class="d-flex justify-content-between">
+    <h3>المواد</h3>
+    <a class="btn btn-primary" href="/items/new">اضافة مادة جديدة</a>
+</div>
+
+<table class="table">
+    <thead>
+        <tr>
+
+            <th>اسم المادة</th>
+            <th>سعر الشراء</th>
+            <th>العدد</th>
+            <th>سعر البيع</th>
+            <th>المجموع</th>
+            <td>Actions</td>
+        </tr>
+    </thead>
+    <tbody>
+        @if (Items == null || Items.Count == 0)
+        {
+            <tr>
+                <td colspan="5">No Items</td>
+            </tr>
+        }
+        else
+        {
+
+            @foreach (var item in Items)
+            {
+                <tr>
+                    <td>@item.ItemName</td>
+                    <td>@item.PurchasePrice</td>
+                    <td>@item.Quantity</td>
+                    <td>@item.SalePrice</td>
+                    <td>@(item.Quantity * item.SalePrice)</td>
+                    <td>
+                        <a class="btn btn-warning" href="/items/new?id=@item.Id">Edit</a>
+                    </td>
+                     <td>
+                   
+                </td>
+                </tr>
+            }
+            <tr class="bg-warning">
+                <td>المجموع</td>
+                <td>@Items.Sum(x => x.PurchasePrice) </td>
+                <td>@Items.Sum(x => x.Quantity)</td>
+                <td>@Items.Sum(x => x.SalePrice)</td>
+                <td>@Items.Sum(x => x.Quantity * x.SalePrice)</td>
+
+               
+               
+            </tr>
+        }
+
+
+    </tbody>
+</table>
+
+@code {
+    public List<Item> Items { get; set; } = null;
+
+    // read Items on page initialization
+    protected override async Task OnInitializedAsync()
+    {
+        // Items= dbContext.Items.ToList();
+        Items = await dbContext.Items.ToListAsync();
+
+    }
+
+
+}
+

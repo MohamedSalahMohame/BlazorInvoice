@@ -1,0 +1,82 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">نطبيق الاقساط</a>
+    </div>
+</div>
+@*...........................*@
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+@*...........................*@
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+ 
+<nav class="flex-column">  @*This means:The elements will be stacked on top of each other (vertically).*@
+        <div class="nav-item px-3">
+
+
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            @*MatchAll controls the active state,*@
+                <span class="bi bi-house-door-fill-nav-menu mx-2" aria-hidden="true"></span> صفحة البداية
+            </NavLink>
+        </div>
+
+      @*   <div class="nav-item px-3">
+            <NavLink class="nav-link" href="counter">
+                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+            </NavLink>
+        </div> *@
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/invoices/Index">
+                <span class="bi bi-list-nested-nav-menu mx-2" aria-hidden="true"></span> فاتورة
+@*             Displays an icon from the Bootstrap Icons library --mx-2 adds horizontal space to the sides
+
+            aria-hidden="true" tells screen readers to ignore the element because it’s decorative and doesn’t contain useful information.
+ *@            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/Customers">
+                <span class="bi bi-list-nested-nav-menu mx-2" aria-hidden="true"></span> الزبائن
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/Items">
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> المواد
+            </NavLink>
+        </div>
+   @*       <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/ratio/index">
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> النسبة
+            </NavLink>
+        </div> *@
+       
+    </nav>
+ </div>
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@*The normal <a> takes you to the link and performs a complete reload of
+the page without any interaction with the Blazor Router, and it does not know which
+link is the current one for the Highlight application or the Active class. NavLink in
+Blazor is a smart component that integrates with the Router. It prevents a complete 
+reload, automatically adds an active class to the current link, and also allows control 
+of the URL matching method using the Match feature, making it ideal for navigating within 
+SPA applications.
+ *@
+@*Active mean If you are on the Customers page, the link in the side menu will be highlighted:
+It's often a different color
+Or bold font
+Or has a different background *@

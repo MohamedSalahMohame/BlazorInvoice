@@ -1,0 +1,990 @@
+﻿@page "/invoices/edit/{id:int}"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using BlazorInvoice.Models
+@using Microsoft.EntityFrameworkCore
+
+@inject ProtectedSessionStorage ProtectedSessionStore
+@inject BlazorInvoice.Data.InvoiceDbContext dbContext
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<h3>Edit Invoice</h3>
+
+@if (!isLoaded)
+{
+    <p>Loading...</p>
+}
+else
+{
+
+    <div class="d-flex justify-content-between">
+
+        <!-- Search -->
+        <div style="position:relative; width:300px">
+
+            @* <input class="form-control"
+                   placeholder="Search item..."
+                   @bind="item.SearchText"
+                   @bind:event="oninput"
+                   @bind:after="FilterItems"
+                   @onfocus="ShowItems" />
+
+            @if (FilteredItems.Any())
+            {
+                <ul class="list-group"
+                    style="position:absolute; width:100%; z-index:1000">
+
+                    @foreach (var i in FilteredItems)
+                    {
+                        <li class="list-group-item list-group-item-action"
+                            @onclick="() => SelectItem(i)">
+                            @i.ItemName
+                        </li>
+                    }
+
+                </ul>
+            } *@
+            <input class="form-control"
+                   placeholder="Search item..."
+                   @bind="item.SearchText"
+                   @bind:event="oninput"
+                   @bind:after="FilterItems"
+                   @onfocus="ShowItems"
+                   @onblur="HideItems" />   <!-- ← هنا -->
+            @if (FilteredItems.Any())
+            {
+                <ul class="list-group"
+                    style="position:absolute; width:100%; z-index:1000">
+                    @foreach (var i in FilteredItems)
+                    {
+                        <li class="list-group-item list-group-item-action"
+                            @onclick="() => SelectItem(i)">
+                            @i.ItemName
+                        </li>
+                    }
+                </ul>
+            }
+
+        </div>
+
+
+        <div class="d-flex border border-primary rounded">
+
+            <div class="form-check m-2">
+                <input class="form-check-input"
+                       type="radio"
+                       checked="@(selectedCurrency == Currency.USD)"
+                       @onclick="()=> HandleCurrency(Currency.USD)">
+                <label>Dollar</label>
+            </div>
+
+            <div class="form-check m-2">
+                <input class="form-check-input"
+                       type="radio"
+                       checked="@(selectedCurrency == Currency.DINAR)"
+                       @onclick="()=> HandleCurrency(Currency.DINAR)">
+                <label>Dinar</label>
+            </div>
+
+            @if (selectedCurrency == Currency.DINAR)
+            {
+                <input style="width:100px"
+                       class="form-control m-1"
+                       type="number"
+                       @bind="DollarBoDinar"
+                       @bind:event="oninput"
+                       @bind:after="()=> HandleCurrency(Currency.DINAR)" />
+            }
+
+        </div>
+
+
+
+        <!-- Customer -->
+        <div style="position:relative; width:250px;">
+
+            @* <input class="form-control"
+                   placeholder="Search customer..."
+                   @bind="CustomerSearchText"
+                   @bind:event="oninput"
+                   @bind:after="FilterCustomers"
+                   @onfocus="ShowCustomers" /> *@
+            <input class="form-control"
+                   placeholder="Search customer..."
+                   @bind="CustomerSearchText"
+                   @bind:event="oninput"
+                   @bind:after="FilterCustomers"
+                   @onfocus="ShowCustomers"
+                   @onblur="HideCustomers" />  <!-- ← جديد -->
+
+            @if (FilteredCustomers.Any())
+            {
+                <ul class="list-group"
+                    style="position:absolute; width:100%; z-index:1000">
+
+                    @foreach (var customer in FilteredCustomers)
+                    {
+                        <li class="list-group-item list-group-item-action"
+                            @onclick="() => SelectCustomer(customer)">
+                            @customer.Name
+                        </li>
+                    }
+
+                </ul>
+            }
+
+        </div>
+
+        <!-- Save -->
+        <div>
+            <button class="btn btn-outline-primary"
+                    @onclick="UpdateInvoice"
+                    disabled="@(Items.Count == 0 || CustomerId==0)">
+                Update Invoice
+            </button>
+        </div>
+
+    </div>
+
+    @if (Items != null)
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Purchase</th>
+                    <th>Qty</th>
+                    <th>Sale</th>
+                    <th>Total</th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var item in Items)
+                {
+                    <tr>
+                        <td>@item.ItemName</td>
+                        <td>@item.PurchasePrice</td>
+
+                        <td>
+                            <button class="btn btn-warning"
+                                    @onclick="()=> item.Quantity--">
+                                -
+                            </button>
+
+                            @item.Quantity
+
+                            <button class="btn btn-info"
+                                    @onclick="()=> item.Quantity++">
+                                +
+                            </button>
+                        </td>
+
+                        <td>@item.SalePrice</td>
+                        <td>@(item.Quantity * item.SalePrice)</td>
+
+                        <td>
+                            <button class="btn btn-danger"
+                                    @onclick="() => DeleteSelectedItem(item.Id)">
+                                X
+                            </button>
+                        </td>
+                    </tr>
+                }
+
+                <tr>
+                    <td colspan="4" class="fw-bold">Total</td>
+                    <td class="fw-bold">@SimpleTotal</td>
+                </tr>
+
+            </tbody>
+        </table>
+        <!-- Payments -->
+
+        <div class="d-flex justify-content-start mx-3">
+
+            @foreach (var m in new int[] { 12, 10, 8, 6, 4, 2, 1 })
+            {
+                <div class="form-check m-1">
+                    <input type="radio"
+                           class="form-check-input"
+                           name="months"
+                           checked="@(NoOfMonths == m)"
+                           @onclick="()=> HandleSelction(m)" />
+                    <label>@m Months</label>
+                </div>
+            }
+
+        </div>
+
+
+      @*   <div class="row row-cols-5">
+
+            @foreach (var payment in payments)
+            {
+                <div class="card text-white bg-info m-1">
+
+                    <div class="card-header">
+                        @payment.Date.ToShortDateString()
+                    </div>
+
+                    <div class="card-body d-flex justify-content-between">
+
+                  
+                        <input type="number"
+                               class="form-control"
+                               style="width:90px"
+                               min="0"
+                               max="@SimpleTotal"
+                               @bind="payment.Amount"
+                               @onfocus="() => lastValidAmount = payment.Amount"
+                               @bind:after="()=>ValidateAndUpdate(payment)"
+                               disabled="@IsLocked(payment)" />
+
+                        <input type="checkbox" @bind="payment.Paid" />
+
+                    </div>
+
+                </div>
+            }
+
+        </div> *@
+        <div class="row row-cols-5">
+
+            @foreach (var payment in payments)
+            {
+                // تحديد لون البطاقة بناءً على حالة الدفع
+                var bgClass = payment.Paid ? "bg-success" : "bg-warning";
+
+                <div class="card text-white @bgClass m-1">
+                    <div class="card-header">
+                        @payment.Date.ToShortDateString()
+                    </div>
+                    <h5 class="card-title"> @payment.Amount : @payment.Currency - @payment.Paid</h5>
+                    <div class="card-body d-flex justify-content-between">
+
+                        <input type="number"
+                               class="form-control"
+                               style="width:90px"
+                               min="0"
+                               max="@SimpleTotal"
+                               @bind="payment.Amount"
+                               @onfocus="() => lastValidAmount = payment.Amount"
+                              
+                               @bind:event="oninput"
+                               @bind:after="()=>ValidateAndUpdate(payment)"
+                               disabled="@IsLocked(payment)" />
+
+                        <input type="checkbox"
+                               @bind="payment.Paid"
+                               @bind:after="()=> StateHasChanged()" />
+                        @* إعادة الرندر بعد تغيير الدفع ليتم تحديث لون البطاقة فورًا *@
+
+                    </div>
+
+                </div>
+            }
+
+        </div>
+    }
+
+}
+
+@code {
+
+    [Parameter]
+    public int id { get; set; }   // 👈 id القادم من الرابط
+
+    bool isLoaded = false;
+
+    public SearchOption item { get; set; } = new();
+
+    public List<Item> Items { get; set; } = new();
+    public List<Customer> Customers { get; set; } = new();
+
+    public int CustomerId { get; set; }
+
+    private Currency selectedCurrency = Currency.USD;
+
+    // int SimpleTotal => Items.Sum(x => x.Quantity * x.SalePrice);
+    int SimpleTotal
+    {
+        get
+        {
+            var total = Items.Sum(x => x.Quantity * x.SalePrice);
+
+            if (selectedCurrency == Currency.DINAR && DollarBoDinar > 0)
+                total *= DollarBoDinar;
+
+            return total;
+        }
+    }
+
+    Invoice? invoice;
+
+    private int DollarBoDinar = 0;
+
+    //////////////////////////////////////////////////////UUUUU
+    List<Payment> Payments = new();
+    private int NoOfMonths = 12;
+    private List<Payment> payments = new();
+
+    //////////////////////////////////////////////////////UUUUU
+    
+
+
+
+
+
+
+    // Customer Search
+    private string CustomerSearchText = "";
+    private List<Customer> FilteredCustomers = new();
+
+    // Item Search
+    private List<Item> FilteredItems = new();
+
+
+
+
+
+
+
+
+    private int lastValidAmount;
+
+
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+    /// </summary>
+    /// <returns></returns>
+
+
+    // protected override async Task OnInitializedAsync()
+    // {
+
+
+    //     Customers = await dbContext.Customer.ToListAsync();
+
+    //     //////////////////////////////////////////////////////UUUUU
+    //     payments = await dbContext.Payments
+    //         .Where(x => x.InvoiceId == id)
+    //         .OrderBy(x => x.Date)
+    //         .ToListAsync();
+
+    //     NoOfMonths = payments.Count;
+
+    //     //////////////////////////////////////////////////////UUUUU
+
+
+    //     // تحميل الفاتورة
+    //     invoice = await dbContext.Invoices
+    //         .Include(x => x.InvoiceItems)
+    //         .FirstOrDefaultAsync(x => x.Id == id);
+
+    //     if (invoice == null)
+    //     {
+    //         NavigationManager.NavigateTo("/invoices/index");
+    //         return;
+    //     }
+
+    //     CustomerId = invoice.CustomerId;
+    //     selectedCurrency = invoice.Currency;
+
+    //     // تحميل العناصر الخاصة بالفاتورة
+    //     var items = await dbContext.InvoiceItems
+    //         .Where(x => x.InvoiceId == id)
+    //         .Include(x => x.Item)
+    //         .ToListAsync();
+
+    //     Items = items.Select(x => new Item
+    //         {
+    //             Id = x.ItemId,
+    //             ItemName = x.Item.ItemName,
+    //             PurchasePrice = x.CostPrice,
+    //             SalePrice = x.SalePrice,
+    //             Quantity = x.Quantity
+    //         }).ToList();
+
+    //     isLoaded = true;
+    // }
+
+
+
+
+
+
+
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     Customers = await dbContext.Customer.ToListAsync();
+
+    //     // تحميل الفاتورة
+    //     invoice = await dbContext.Invoices
+    //         .Include(x => x.InvoiceItems)
+    //         .FirstOrDefaultAsync(x => x.Id == id);
+
+    //     if (invoice == null)
+    //     {
+    //         NavigationManager.NavigateTo("/invoices/index");
+    //         return;
+    //     }
+
+    //     CustomerId = invoice.CustomerId;
+    //     selectedCurrency = invoice.Currency;
+
+    //     // عرض اسم العميل مباشرة في مربع البحث
+    //     var customer = Customers.FirstOrDefault(c => c.Id == CustomerId);
+    //     if (customer != null)
+    //     {
+    //         CustomerSearchText = customer.Name; // ← هذا يجعل الاسم يظهر مباشرة
+    //     }
+
+    //     // تحميل العناصر الخاصة بالفاتورة
+    //     var items = await dbContext.InvoiceItems
+    //         .Where(x => x.InvoiceId == id)
+    //         .Include(x => x.Item)
+    //         .ToListAsync();
+
+    //     Items = items.Select(x => new Item
+    //         {
+    //             Id = x.ItemId,
+    //             ItemName = x.Item.ItemName,
+    //             PurchasePrice = x.CostPrice,
+    //             SalePrice = x.SalePrice,
+    //             Quantity = x.Quantity
+    //         }).ToList();
+
+    //     // تحميل الأقساط
+    //     payments = await dbContext.Payments
+    //         .Where(x => x.InvoiceId == id)
+    //         .OrderBy(x => x.Date)
+    //         .ToListAsync();
+
+    //     NoOfMonths = payments.Count;
+
+    //     isLoaded = true;
+    // }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Customers = await dbContext.Customer.ToListAsync();
+
+        // تحميل الفاتورة
+        invoice = await dbContext.Invoices
+            .Include(x => x.InvoiceItems)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (invoice == null)
+        {
+            NavigationManager.NavigateTo("/invoices/index");
+            return;
+        }
+
+        CustomerId = invoice.CustomerId;
+        selectedCurrency = invoice.Currency;
+
+        // تعيين معدل التحويل عند الدينار
+        DollarBoDinar = invoice.DollarBoDinar > 0 ? invoice.DollarBoDinar : 10; // 10 قيمة افتراضية
+
+        // عرض اسم العميل مباشرة في مربع البحث
+        var customer = Customers.FirstOrDefault(c => c.Id == CustomerId);
+        if (customer != null)
+        {
+            CustomerSearchText = customer.Name;
+        }
+
+        // تحميل العناصر الخاصة بالفاتورة
+        var items = await dbContext.InvoiceItems
+            .Where(x => x.InvoiceId == id)
+            .Include(x => x.Item)
+            .ToListAsync();
+
+        Items = items.Select(x => new Item
+            {
+                Id = x.ItemId,
+                ItemName = x.Item.ItemName,
+                PurchasePrice = x.CostPrice,
+                SalePrice = x.SalePrice,
+                Quantity = x.Quantity
+            }).ToList();
+
+        // تحميل الأقساط
+        payments = await dbContext.Payments
+            .Where(x => x.InvoiceId == id)
+            .OrderBy(x => x.Date)
+            .ToListAsync();
+
+        NoOfMonths = payments.Count;
+
+        isLoaded = true;
+    }
+
+  
+
+    private void DeleteSelectedItem(int id)
+    {
+        Items.Remove(Items.First(x => x.Id == id));
+    }
+
+    private async Task SearchItems()
+    {
+        var newItems = await dbContext.Items
+            .Where(x => x.ItemName.Contains(item.SearchText!))
+            .ToListAsync();
+
+        foreach (var i in newItems)
+        {
+            var existing = Items.FirstOrDefault(x => x.Id == i.Id);
+
+            if (existing != null)
+                existing.Quantity++;
+            else
+            {
+                i.Quantity = 1;
+                Items.Add(i);
+            }
+        }
+    }
+
+
+
+
+
+
+
+    private async Task UpdateInvoice()
+    {
+        if (invoice == null) return;
+
+        invoice.CustomerId = CustomerId;
+        invoice.Payment = SimpleTotal;
+        invoice.Currency = selectedCurrency;
+        invoice.DollarBoDinar = selectedCurrency == Currency.DINAR ? DollarBoDinar : 1;
+
+        // حذف العناصر القديمة
+        var oldItems = dbContext.InvoiceItems
+            .Where(x => x.InvoiceId == invoice.Id);
+        dbContext.InvoiceItems.RemoveRange(oldItems);
+
+        // إضافة العناصر الجديدة
+        var newItems = Items.Select(i => new InvoiceItem
+            {
+                InvoiceId = invoice.Id,
+                ItemId = i.Id,
+                Quantity = i.Quantity,
+                SalePrice = i.SalePrice,
+                CostPrice = i.PurchasePrice
+            });
+        await dbContext.InvoiceItems.AddRangeAsync(newItems);
+
+        // حذف الأقساط القديمة
+        var oldPayments = dbContext.Payments
+            .Where(x => x.InvoiceId == invoice.Id);
+        dbContext.Payments.RemoveRange(oldPayments);
+
+        // إنشاء نسخة جديدة للأقساط من القائمة الحالية، بدون أي كائنات متعلقة مسبقًا بالـ DbContext
+        var newPayments = payments.Select(p => new Payment
+            {
+                InvoiceId = invoice.Id,
+                Amount = p.Amount,
+                Paid = p.Paid,
+                Currency = p.Currency,
+                Date = p.Date
+            });
+
+        await dbContext.Payments.AddRangeAsync(newPayments);
+
+        await dbContext.SaveChangesAsync();
+
+        NavigationManager.NavigateTo("/invoices/index");
+    }
+    // private async Task UpdateInvoice()
+    // {
+    //     if (invoice == null) return;
+
+    //     // تحديث بيانات الفاتورة
+    //     invoice.CustomerId = CustomerId;
+    //     invoice.Payment = SimpleTotal;
+    //     invoice.Currency = selectedCurrency;
+
+    //     // حفظ معدل التحويل عند اختيار الدينار
+    //     if (selectedCurrency == Currency.DINAR)
+    //         invoice.DollarBoDinar = DollarBoDinar;  // ← إضافة هذا السطر
+    //     else
+    //         invoice.DollarBoDinar = 1;              // أو أي قيمة افتراضية عند الدولار
+
+    //     // حذف العناصر القديمة
+    //     var oldItems = dbContext.InvoiceItems
+    //         .Where(x => x.InvoiceId == invoice.Id);
+
+    //     dbContext.InvoiceItems.RemoveRange(oldItems);
+
+    //     // إضافة العناصر الجديدة
+    //     var newItems = Items.Select(i => new InvoiceItem
+    //         {
+    //             InvoiceId = invoice.Id,
+    //             ItemId = i.Id,
+    //             Quantity = i.Quantity,
+    //             SalePrice = i.SalePrice,
+    //             CostPrice = i.PurchasePrice
+    //         });
+
+    //     await dbContext.InvoiceItems.AddRangeAsync(newItems);
+
+    //     //////////////////////////////////////////////////////UUUUU
+    //     var oldPayments = dbContext.Payments
+    //         .Where(x => x.InvoiceId == invoice.Id);
+
+    //     dbContext.Payments.RemoveRange(oldPayments);
+
+    //     foreach (var payment in payments)
+    //     {
+    //         payment.InvoiceId = invoice.Id;
+    //     }
+
+    //     await dbContext.Payments.AddRangeAsync(payments);
+
+    //     //////////////////////////////////////////////////////UUUUU
+
+    //     await dbContext.SaveChangesAsync();
+
+    //     NavigationManager.NavigateTo("/invoices/index");
+    // }
+    // private async Task UpdateInvoice()
+    // {
+    //     if (invoice == null) return;
+
+    //     // تحديث بيانات الفاتورة
+    //     invoice.CustomerId = CustomerId;
+    //     invoice.Payment = SimpleTotal;
+    //     invoice.Currency = selectedCurrency;
+
+    //     // حذف العناصر القديمة
+    //     var oldItems = dbContext.InvoiceItems
+    //         .Where(x => x.InvoiceId == invoice.Id);
+
+    //     dbContext.InvoiceItems.RemoveRange(oldItems);
+
+    //     // إضافة العناصر الجديدة
+    //     var newItems = Items.Select(i => new InvoiceItem
+    //         {
+    //             InvoiceId = invoice.Id,
+    //             ItemId = i.Id,
+    //             Quantity = i.Quantity,
+    //             SalePrice = i.SalePrice,
+    //             CostPrice = i.PurchasePrice
+    //         });
+
+    //     await dbContext.InvoiceItems.AddRangeAsync(newItems);
+
+    //     //////////////////////////////////////////////////////UUUUU
+    //     var oldPayments = dbContext.Payments
+    //         .Where(x => x.InvoiceId == invoice.Id);
+
+    //     dbContext.Payments.RemoveRange(oldPayments);
+
+    //     foreach (var payment in payments)
+    //     {
+    //         payment.InvoiceId = invoice.Id;
+    //     }
+
+    //     await dbContext.Payments.AddRangeAsync(payments);
+
+    //     //////////////////////////////////////////////////////UUUUU
+
+    //     await dbContext.SaveChangesAsync();
+
+    //     NavigationManager.NavigateTo("/invoices/index");
+    // }
+
+    public class SearchOption
+    {
+        public string? SearchText { get; set; }
+    }
+
+
+    // private void UpdatePayment(Payment payment, ChangeEventArgs e)
+    // {
+    //     int newAmount = Convert.ToInt32(e.Value);
+
+    //     int oldAmount = payment.Amount;
+
+    //     int difference = newAmount - oldAmount;
+
+    //     payment.Amount = newAmount;
+    //     payment.IsEdited = true;
+
+    //     var remaining = payments
+    //         .Where(p => !p.IsEdited)
+    //         .ToList();
+
+    //     if (remaining.Count == 0)
+    //         return;
+
+    //     int share = difference / remaining.Count;
+
+    //     foreach (var p in remaining)
+    //     {
+    //         p.Amount -= share;
+    //     }
+    // }
+    private void UpdatePaymentLogic(Payment payment)
+{
+    int newAmount = payment.Amount;
+
+    int oldAmount = lastValidAmount;
+
+    int difference = newAmount - oldAmount;
+
+    payment.IsEdited = true;
+
+    var remaining = payments
+        .Where(p => !p.IsEdited)
+        .ToList();
+
+    if (remaining.Count == 0)
+        return;
+
+    int share = difference / remaining.Count;
+
+    foreach (var p in remaining)
+    {
+        p.Amount -= share;
+    }
+
+    lastValidAmount = newAmount;
+}
+
+
+
+
+    private void HandleCurrency(Currency currency)
+    {
+        selectedCurrency = currency;
+
+        HandleSelction(NoOfMonths);
+    }
+
+    private void HandleSelction(int noOfMonths)
+    {
+        NoOfMonths = noOfMonths;
+        payments.Clear();
+
+        var totalAmount = SimpleTotal;
+
+        var amountPerPayment =
+            Math.Round(totalAmount / (double)NoOfMonths, 2);
+
+        var date = DateTime.Now;
+
+        for (int i = 0; i < NoOfMonths; i++)
+        {
+            payments.Add(new Payment
+                {
+                    Date = date.AddMonths(i),
+                    Amount = (int)amountPerPayment,
+                    Currency = selectedCurrency
+                });
+        }
+    }
+
+
+
+
+    bool IsLocked(Payment payment)
+    {
+        var remaining = payments.Where(p => !p.IsEdited).ToList();
+
+        return remaining.Count == 1 && !payment.IsEdited;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    private void ShowCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(CustomerSearchText))
+        {
+            FilteredCustomers = Customers
+                .OrderBy(x => x.Name)
+                .Take(5)
+                .ToList();
+        }
+    }
+
+    private void FilterCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(CustomerSearchText))
+        {
+            FilteredCustomers = Customers
+                .OrderBy(x => x.Name)
+                .Take(5)
+                .ToList();
+        }
+        else
+        {
+            FilteredCustomers = Customers
+                .Where(x => x.Name.Contains(CustomerSearchText,
+                       StringComparison.OrdinalIgnoreCase))
+                .OrderBy(x => x.Name)
+                .Take(7)
+                .ToList();
+        }
+    }
+
+    private void SelectCustomer(Customer customer)
+    {
+        CustomerId = customer.Id;
+        CustomerSearchText = customer.Name;
+
+        FilteredCustomers.Clear();
+    }
+
+
+
+
+
+
+
+
+
+
+
+    private void ShowItems()
+    {
+        FilteredItems = dbContext.Items
+            .OrderBy(x => x.ItemName)
+            .Take(5)
+            .ToList();
+    }
+
+    private void FilterItems()
+    {
+        if (string.IsNullOrWhiteSpace(item.SearchText))
+        {
+            FilteredItems = dbContext.Items
+                .OrderBy(x => x.ItemName)
+                .Take(5)
+                .ToList();
+        }
+        else
+        {
+            FilteredItems = dbContext.Items
+                .Where(x => x.ItemName.Contains(item.SearchText))
+                .OrderBy(x => x.ItemName)
+                .Take(7)
+                .ToList();
+        }
+    }
+
+    private void SelectItem(Item selectedItem)
+    {
+        var existing = Items.FirstOrDefault(x => x.Id == selectedItem.Id);
+
+        if (existing != null)
+            existing.Quantity++;
+        else
+        {
+            selectedItem.Quantity = 1;
+            Items.Add(selectedItem);
+        }
+
+        item.SearchText = "";
+        FilteredItems.Clear();
+    }
+
+
+
+    private async Task ValidateAndUpdate(Payment payment)
+    {
+        if (payment.Amount < 0)
+        {
+            await JS.InvokeVoidAsync("alert", "النظام لا يقبل رقم سالب");
+            payment.Amount = lastValidAmount;
+            StateHasChanged();
+            return;
+        }
+
+        // حل مشكلة 100-
+        if (payment.Amount == 0 && lastValidAmount > 0)
+        {
+            payment.Amount = lastValidAmount;
+            StateHasChanged();
+            return;
+        }
+
+        if (payment.Amount > SimpleTotal)
+        {
+            await JS.InvokeVoidAsync("alert", "القيمة أكبر من الفاتورة");
+            payment.Amount = lastValidAmount;
+            StateHasChanged();
+            return;
+        }
+
+        UpdatePaymentLogic(payment);
+    }
+
+
+
+
+
+    private void HideItems()
+    {
+        // نؤجل مسح القائمة قليلاً لإعطاء فرصة للنقر على العنصر
+        Task.Delay(150).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                FilteredItems.Clear();
+                StateHasChanged();
+            });
+        });
+    }
+    private void HideCustomers()
+    {
+        // نؤجل مسح القائمة قليلاً لإعطاء فرصة للنقر على عنصر من القائمة قبل الإخفاء
+        Task.Delay(150).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                FilteredCustomers.Clear();
+                StateHasChanged();
+            });
+        });
+    }
+}

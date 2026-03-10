@@ -1,0 +1,31 @@
+﻿@* This is the component responsible for the Routing system in Blazor. --  Search for all pages (.razor) that contain @page within the same project (Assembly). 
+    The Router will automatically recognize them.
+ *@
+ <Router AppAssembly="typeof(Program).Assembly">
+
+
+
+     @*
+
+    This part is executed when a route matching the current URL is found.
+
+    RouteData contains information about the requested page (such as the page name and any parameters).
+
+     *@
+    <Found Context="routeData">
+        @*
+        RouteView is the component that actually renders the page.
+        RouteData="routeData" means: render the page that the Router has found.
+
+        DefaultLayout="typeof(Layout.MainLayout)" means:
+        Use MainLayout as the default layout for all pages.
+        *@
+
+
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+
+        @*When you navigate between pages,
+        it will automatically set the focus on the first h1 element in the new page.*@
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

@@ -1,0 +1,131 @@
+﻿@* The component in Blazor Server is responsible for:
+Adding a new component
+Or modifying an existing component
+And searching for similar components while writing *@
+@page "/items/new"
+@using BlazorInvoice.Models
+@using Microsoft.EntityFrameworkCore
+@inject BlazorInvoice.Data.InvoiceDbContext  dbContext
+@* NavigationManager → For programmatic page navigation as in line 108 in Add item *@
+@inject NavigationManager NavigationManager      
+
+
+@* This means the page operates in interactive Blazor Server mode (events run directly without page reloading).*@
+@rendermode InteractiveServer
+
+<style>
+    .table {
+        width: 100%;
+        margin-top: 20px;
+        color: gray;
+    }
+</style>
+
+
+<div class="d-flex justify-content-between">
+    <h3>اضافة مادة جديدة</h3>
+    <a class="btn btn-primary" href="/items">العودة</a>
+</div>
+
+<EditForm method="post" Model="@item" OnValidSubmit="AddItem" FormName="NewItem" >
+
+@*It relies on DataAnnotations found within the Item class.*@
+    <DataAnnotationsValidator />
+   @* add forms fileld *@
+  <ValidationSummary />
+  
+   <div >
+        <label class="text-dark">مادة جديدة </label>
+        <InputText class="form-control" @bind-Value="item.ItemName" @oninput="searchForSimilarItems" />
+        <ValidationMessage For="()=> item.ItemName"/>
+   </div>
+    <div >
+        <label> سعر الشراء</label>
+         <InputNumber class="form-control" @bind-Value="item.PurchasePrice" />
+        <ValidationMessage For="()=>item.PurchasePrice"></ValidationMessage>
+    </div>
+ 
+    <div>
+        <label>العدد</label>
+        <InputNumber class="form-control" @bind-Value="item.Quantity" />
+        <ValidationMessage For="()=>item.Quantity"></ValidationMessage>
+    </div>
+    <div >
+        <label>سعر البيع </label>
+        <InputNumber class="form-control" @bind-Value="item.SalePrice" />
+        <ValidationMessage For="()=>item.SalePrice"></ValidationMessage>
+    </div>
+ 
+    <button class="btn btn-outline-primary" type="submit">اضافة</button>
+  
+</EditForm>
+
+
+
+<table class="table text-secondary">
+    <thead>
+        <tr>
+            <th>اسم المادة</th>
+            <th>سعر الشراء</th>
+            <th>العدد</th>
+            <th>سعر البيع</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in SimilarItems)
+        {
+            <tr>
+                <td>@item.ItemName</td>
+                <td>@item.PurchasePrice</td>
+                <td>@item.Quantity</td>
+                <td>@item.SalePrice</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+
+
+
+
+
+    // In this code, [SupplyParameterFromForm] is used to make Blazor automatically populate
+    // the item variable with the values ​​of the fields in the <EditForm> form when submitting, 
+    // without having to read each field manually, while [SupplyParameterFromQuery] automatically
+    // populates the Id variable with a value in the URL's Query string when the page is opened, allowing 
+    // it to distinguish whether the user wants to add a new item or edit an existing one. EditForm allows fields
+    // to be directly linked to item properties and similar items to be displayed as they are typed using SimilarItems.
+    [SupplyParameterFromForm]
+    public Item item { get; set; } = new Item();
+    [SupplyParameterFromQuery]
+    public int Id {get; set;}= 0;
+    public List<Item> SimilarItems { get; set; } = new List<Item>();
+    protected override void OnInitialized()
+    {
+         if (Id != 0)
+         {
+              item = dbContext.Items.Find(Id);
+         }
+    }
+        
+    private async Task AddItem()
+    {
+       if(Id == 0)
+        dbContext.Items.Add(item);
+        else
+        dbContext.Items.Update(item);
+         dbContext.Items.Update(item);
+        await dbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo("/items");
+    }
+    
+    private async Task searchForSimilarItems(ChangeEventArgs e)
+    {
+        var itemName = e.Value.ToString();
+        if(itemName.Length > 2)
+        SimilarItems = await dbContext.Items.Where(i => i.ItemName.Contains(itemName)).ToListAsync();
+       
+       
+    }
+}
